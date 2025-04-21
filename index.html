@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>{{ title }}</title>
+<link rel='stylesheet' href='https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css'>
+<link rel='stylesheet' href='https://cdn.datatables.net/buttons/2.3.6/css/buttons.dataTables.min.css'>
+<script src='https://code.jquery.com/jquery-3.7.1.min.js'></script>
+<script src='https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js'></script>
+<script src='https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js'></script>
+<script src='https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js'></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f6f8;
+        margin: 0;
+        padding: 0 1rem;
+        font-size: 16px;
+    }
+    h2 {
+        text-align: center;
+        margin-top: 2rem;
+        color: #333;
+        font-size: 2rem;
+    }
+    .details-subtable {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: inherit;
+        font-size: 16px;
+    }
+    .details-subtable th, .details-subtable td {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        text-align: left;
+    }
+    .details-subtable th {
+        background-color: #f9f9f9;
+    }
+    .slide-wrapper {
+        display: none;
+        background: #fff;
+        border: 1px solid #ccc;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        margin: 10px 0;
+        padding: 10px;
+    }
+    .center-buttons {
+        text-align: center;
+        margin-top: 1rem;
+    }
+    .center-buttons button {
+        border: none;
+        background-color: #007bff;
+        color: white;
+        border-radius: 25px;
+        padding: 0.5rem 1.25rem;
+        cursor: pointer;
+        font-size: 1rem;
+        margin: 0.25rem;
+    }
+    .center-buttons button:hover {
+        background-color: #0056b3;
+    }
+    #progress-container {
+        width: 100%;
+        height: 10px;
+        background: #ccc;
+        margin-top: 1rem;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    #progress-bar {
+        height: 100%;
+        width: 0%;
+        background: #007bff;
+        transition: width 1s linear;
+    }
+    .spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #007bff;
+        border-radius: 50%;
+        width: 14px;
+        height: 14px;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    #loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.8);
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.5rem;
+    }
+    table.dataTable {
+        font-size: 16px;
+    }
+    #data-table tbody tr {
+        transition: background-color 0.3s ease;
+    }
+    #data-table tbody tr:hover {
+        background-color: #e6f2ff;
+    }
+    .center-buttons button {
+        transition: transform 0.2s ease;
+    }
+    .center-buttons button:hover {
+        transform: scale(1.05);
+    }
+    #data-table_wrapper {
+        background-color: #ffffff;
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    #progress-bar {
+        background: linear-gradient(to right, #007bff, #00bfff);
+    }
+    #data-table {
+        opacity: 0;
+        transition: opacity 0.5s ease-in;
+    }
+    div.dataTables_length {
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        position: relative;
+        margin-bottom: 10px;
+    }
+    div.dataTables_length select {
+        border-radius: 12px;
+        padding: 6px 10px;
+        background-color: #ffffff;
+        border: 1px solid #ccc;
+        font-size: 14px;
+        cursor: pointer;
+        appearance: none;
+        transition: all 0.3s ease-in-out;
+    }
+    div.dataTables_length select:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 5px rgba(0,123,255,0.5);
+    }
+    div.dataTables_length {
+        position: relative;
+    }
+    div.dataTables_length::after {
+        content: '▼';
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        color: #666;
+    }
+</style>
+</head>
+<body>
+<div id="loading-overlay">
+    <div>
+        <div class="spinner" style="width:30px;height:30px;border-width:4px;"></div>
+        <div style="margin-top:10px">Carregando tabela...</div>
+    </div>
+</div>
+
+<h2>{{ title }}</h2>
+<table id="data-table" class="display nowrap" style="width:100%"></table>
+
+<div id="progress-container">
+    <div id="progress-bar" title="Auto refresh in ..."></div>
+</div>
+
+<div class="center-buttons">
+    <label for="refreshSelect">⏱️ Auto refresh every:</label>
+    <select id="refreshSelect" style="margin-left: 8px; border-radius: 15px; padding: 0.25rem 0.5rem;">
+        <option value="60000">1 minute</option>
+        <option value="180000">3 minutes</option>
+        <option value="300000" selected>5 minutes</option>
+        <option value="600000">10 minutes</option>
+    </select>
+</div>
+
+<div class="center-buttons">
+    <button onclick="loadData()">🔄 Refresh Now</button>
+</div>
+
+<script>
+let autoRefreshInterval = {{ interval }};
+let refreshTimer;
+let countdown;
+let dataTable;
+let expandedDetails = new Map();
+
+function updateCountdown() {
+    const secondsRemaining = countdown;
+    document.getElementById('progress-bar').style.width = `${100 - (secondsRemaining / (autoRefreshInterval / 1000)) * 100}%`;
+    document.getElementById('progress-bar').setAttribute('title', `🔄 Auto refresh in ${secondsRemaining} second(s)`);
+    countdown--;
+}
+function startCountdown() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    countdown = autoRefreshInterval / 1000;
+    updateCountdown();
+    refreshTimer = setInterval(() => {
+        if (countdown <= 0) {
+            loadData();
+        } else {
+            updateCountdown();
+        }
+    }, 1000);
+}
+function formatDetails(data) {
+    if (!Array.isArray(data)) return '<div>No data</div>';
+    let html = '<table class="details-subtable"><thead><tr><th>Order</th><th>Amount</th></tr></thead><tbody>';
+    data.forEach(row => {
+        html += `<tr><td>${row.Order}</td><td>${row.Amount}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    return `<div class='slide-wrapper'>${html}</div>`;
+}
+function loadData() {
+    document.getElementById('loading-overlay').style.display = 'flex';
+    fetch('/data')
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('loading-overlay').style.display = 'none';
+        const columns = [{
+            className: 'details-control',
+            orderable: false,
+            data: null,
+            defaultContent: '<span class="expand-btn">▶</span>'
+        }, ...Object.keys(data[0]).map(k => ({ title: k, data: k }))];
+
+        if (dataTable) {
+            dataTable.clear().rows.add(data).draw();
+            document.getElementById('data-table').style.opacity = '1';
+        } else {
+            dataTable = $('#data-table').DataTable({
+                pageLength: {{ page_lenght }} ,
+                lengthMenu: [[50, 100, 200, 500, -1], [50, 100, 200, 500, 'All']],
+                initComplete: function() {
+                    document.getElementById('data-table').style.opacity = '1';
+                },
+                data: data,
+                columns: columns,
+                initComplete: function () {
+                    const api = this.api();
+                    const headerRow = $('#data-table thead tr');
+                    const filterRow = headerRow.clone().appendTo('#data-table thead');
+                    filterRow.find('th').each(function (index) {
+                        const cell = $(this);
+                        cell.empty();
+                        if (index === 0) return; // skip expand button column
+                        const input = $('<input type="text" placeholder="Search..." style="width: 100%; padding: 4px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px;"/>');
+                        input.on('keyup change', function () {
+                            if (api.column(index).search() !== this.value) {
+                                api.column(index).search(this.value).draw();
+                            }
+                        });
+                        cell.append(input);
+                    });
+                    document.getElementById('data-table').style.opacity = '1';
+                },
+                dom: 'Bltip',
+                buttons: [
+                    {
+                        text: '📂 Expand Selected',
+                        action: function (e, dt, node) {
+                            const originalText = node.innerHTML;
+                            node.innerHTML = '<span class="spinner" style="vertical-align: middle; margin-right: 6px;"></span> Expand Selected';
+                            node.disabled = true;
+                            let pending = 0;
+                            let completed = 0;
+                            const selectedIndexes = dataTable.rows({ selected: true }).indexes().toArray();
+                            const rowsInOrder = dataTable.rows().indexes().toArray();
+                            rowsInOrder.forEach((idx) => {
+                                if (selectedIndexes.includes(idx)) {
+                                    const row = dataTable.row(idx);
+                                    const rowNode = $(row.node());
+                                    const name = row.data().Name;
+                                    const btn = rowNode.find('.expand-btn');
+                                    if (!row.child.isShown()) {
+                                        btn.html('<span class="spinner"></span>');
+                                        pending++;
+                                        fetch(`/details?field=Name&value=${encodeURIComponent(name)}`)
+                                            .then(res => res.json())
+                                            .then(details => {
+                                                expandedDetails.set(name, details);
+                                                row.child(formatDetails(details)).show();
+                                                $('.slide-wrapper', row.child()).slideDown(300);
+                                                rowNode.addClass('shown');
+                                                btn.html('▼');
+                                                completed++;
+                                                if (completed === pending) {
+                                                    setTimeout(() => {
+                                node.innerHTML = originalText;
+                                node.disabled = false;
+                            }, 100);
+                                                }
+                                                node.innerHTML = originalText;
+                                                node.disabled = false;
+                                            })
+                                            .catch(() => {
+                                                btn.html('▶');
+                                                completed++;
+                                                if (completed === pending) {
+                                                    node.innerHTML = originalText;
+                                                    node.disabled = false;
+                                                }
+                                            });
+                                    }
+                                }
+                            });
+                        }
+                    },
+                    {
+                        text: '➖ Collapse All',
+                        action: function () {
+                            dataTable.rows().every(function () {
+                                const row = this;
+                                if (row.child.isShown()) {
+                                    row.child.hide();
+                                    $(row.node()).removeClass('shown');
+                                    $(row.node()).find('.expand-btn').html('+');
+                                }
+                            });
+                        }
+                    },
+                    {
+                        text: '⬇️ Export to Excel',
+                        action: function () {
+                            const main = dataTable.rows({ search: 'applied' }).data().toArray();
+                            const allExpandedNames = dataTable.rows({ search: 'applied' }).data().toArray()
+    .map(row => row.Name)
+    .filter(name => expandedDetails.has(name));
+const details = allExpandedNames.flatMap(name => expandedDetails.get(name));
+
+                            const wb = XLSX.utils.book_new();
+                            if (main.length > 0) {
+                                const mainSheet = XLSX.utils.json_to_sheet(main);
+                                XLSX.utils.book_append_sheet(wb, mainSheet, 'data');
+                            }
+                            if (details.length > 0) {
+                                const detailSheet = XLSX.utils.json_to_sheet(details);
+                                XLSX.utils.book_append_sheet(wb, detailSheet, 'details');
+                            }
+
+                            const now = new Date();
+                            const timestamp = now.toISOString().replace(/[:T]/g, '_').split('.')[0];
+                            const title = document.title.toLowerCase().replace(/\s+/g, '_');
+                            const filename = `${title}_${timestamp}.xlsx`;
+                            XLSX.writeFile(wb, filename);
+                        }
+                    }
+                ]
+            });
+        }
+
+        document.getElementById('refreshSelect').addEventListener('change', function () {
+            autoRefreshInterval = parseInt(this.value);
+            startCountdown();
+        });
+
+        $('#data-table tbody').off('click', 'td.details-control').on('click', 'td.details-control', function () {
+            const tr = $(this).closest('tr');
+            const row = dataTable.row(tr);
+            const btn = $(this).find('.expand-btn');
+            if (row.child.isShown()) {
+                row.child.hide();
+                tr.removeClass('shown');
+                btn.html('▶');
+            } else {
+                btn.html('<span class="spinner"></span>');
+                const name = row.data().Name;
+                fetch(`/details?field=Name&value=${encodeURIComponent(name)}`)
+                  .then(response => response.json())
+                  .then(details => {
+                      expandedDetails.set(name, details);
+                      row.child(formatDetails(details)).show();
+                      $('.slide-wrapper', row.child()).slideDown(300);
+                      tr.addClass('shown');
+                      btn.html('▼');
+                  })
+                  .catch(() => {
+                      btn.html('▶');
+                  });
+            }
+        });
+      })
+      .catch(err => {
+        console.error("Failed to load data:", err);
+        alert("⚠️ Error loading data. Check the console for details.");
+      });
+
+    startCountdown();
+}
+
+$(document).ready(function () {
+    loadData();
+});
+</script>
+</body>
+</html>
